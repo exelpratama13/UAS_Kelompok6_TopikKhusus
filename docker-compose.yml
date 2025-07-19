@@ -1,0 +1,70 @@
+services:
+  # Application Service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: laravel-app
+    container_name: laravel-app
+    restart: unless-stopped
+    tty: true
+    environment:
+      SERVICE_NAME: app
+      SERVICE_TAGS: dev
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    networks:
+      - laravel
+    depends_on: 
+      db:
+        condition: service_healthy 
+
+  # Nginx Service
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker-compose/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - laravel
+    depends_on: # <--- Tambahkan atau perbarui bagian ini
+      - app # Nginx hanya perlu memastikan app sudah berjalan, tidak perlu menunggu healthy
+
+  # MySQL Service
+  db:
+    image: mysql:8.0
+    container_name: mysql
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_ROOT_PASSWORD: root
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - laravel
+    healthcheck: # <--- TAMBAHKAN BAGIAN HEALTHCHECK INI
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 5s
+
+# Networks
+networks:
+  laravel:
+    driver: bridge
+
+# Volumes
+volumes:
+  dbdata:
+    driver: local
